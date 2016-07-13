@@ -1,0 +1,226 @@
+global appPath, execPath, CpuModel, Smbios
+--声明全局函数,以下开始定义
+
+set appPath to POSIX path of ((path to me) as Unicode text)
+--获取app运行时所在的绝对路径并转换为PPOSIX格式
+
+set execPath to localized string "Contents/Bin/"
+--定义app内部存储信息的路径
+
+set CpuModel to do shell script "sysctl machdep.cpu.brand_string|sed s/\"machdep.cpu.brand_string: \"//g|sed s/@.*z//g|sed s/I.*\\)//g|sed s/CPU//g|sed s/\" \"//g"
+--获取cpu型号
+
+set Smbios to do shell script "sysctl hw.model|awk '{print $2}'"
+--获取机器型号标识符
+
+--由于解释性语言的函数先行机制，所以允许先调用语句在定义语句之前
+cpu()
+--调用cpus函数(其实是叫handle:事件处理器)
+
+on cpu()
+	--开始定义cpus函数
+	
+	set GHz to do shell script "sysctl machdep.cpu|grep @|awk '{print $NF}'"
+	--获取处理器速度
+	
+	set Cores to do shell script "sysctl machdep.cpu|grep core_count|awk '{print $2}'"
+	--获取cpu物理核心数目
+	
+	set LogicCores to do shell script "sysctl machdep.cpu|grep thread|awk '{print $2}'"
+	--获取cpu逻辑核心数目(常称之为cpu线程数)
+	
+	set L2Cache to do shell script "system_profiler SPHardwareDataType|grep L2|awk '{print $5$6}'"
+	--获取每个cpu物理核心的L2缓存大小
+	
+	set L3cache to do shell script "system_profiler SPHardwareDataType|grep \"L3 C\"|awk '{print $3$4}'"
+	--获取L3缓存大小
+	
+	set CPuModelt to localized string of "处理器型号:  "
+	set Smbiost to localized string of "型号标识符:  "
+	set GHzt to localized string of "处理器速度:  "
+	set Corest to localized string of "物理核心数:  "
+	set LogicCorest to localized string of "逻辑核心数:  "
+	set L2Cachet to localized string of "L2缓存(每个核):     "
+	set L3Cachet to localized string of "L3缓存:        "
+	set g to localized string of "个"
+	set mb to localized string of "MB"
+	set kb to localized string of "KB"
+	set spacet to localized string of "          "
+	--将所需的本地文本赋值给变量
+	
+	display dialog Smbiost & spacet & Smbios & return & return & CPuModelt & spacet & CpuModel & return & return & GHzt & spacet & GHz & return & return & Corest & spacet & Cores & g & return & return & LogicCorest & spacet & LogicCores & g & return & return & L2Cachet & L2Cache & return & return & L3Cachet & spacet & L3cache with icon note with title "CPU-S v3.3" buttons {"电源监测", "变频测试", "退出程序"} default button 3
+	--构建窗体
+	
+	set the anniu to the button returned of the result
+	--获取按钮返回值
+	
+	if the anniu is "变频测试" then
+		sys()
+		--如果点击了"变频测试"按钮则调用sys函数
+		
+	else if the anniu is "电源监测" then
+		do shell script "open " & appPath & execPath & "IPG.app"
+		--如果点击了"电源测试"按钮,则打开app内部信息储存路径中对应的另一个app
+		
+	end if
+	--结束判断
+	
+end cpu
+--结束定义cpu函数
+
+on sys()
+	--开始定义sys函数
+	
+	set theFile to "/Library/Frameworks/IntelPowerGadget.framework"
+	tell application "System Events" to set fileExists to exists disk item (my POSIX file theFile as string)
+	tell application "Finder" to set fileExists to exists my POSIX file theFile
+	try
+		--设置必须的支持文件的路径并判断是否存在
+		
+		POSIX file theFile as alias
+		set f1 to "0"
+		--如果文件存在就将变量f1赋值为0
+		
+	on error
+		set f1 to "1"
+		----如果文件不存在就将变量f1赋值为1
+		
+	end try
+	--结束判断
+	
+	set theFile to "/Library/Extensions/EnergyDriver.kext"
+	tell application "System Events" to set fileExists to exists disk item (my POSIX file theFile as string)
+	tell application "Finder" to set fileExists to exists my POSIX file theFile
+	try
+		--设置必须的支持文件的路径并判断是否存在
+		
+		POSIX file theFile as alias
+		set f2 to "0"
+		--如果文件存在就将变量f2赋值为0
+		
+	on error
+		set f2 to "1"
+		--如果文件存在就将变量f2赋值为1
+		
+	end try
+	--结束判断
+	
+	set f3 to f1 + f2
+	--计算f1与f2的和并赋值给f3
+	
+	if f3 > 0 then
+		--如果f3大于0则表示肯定缺少某个必须的文件
+		
+		display dialog "您的驱动环境可能不完全,可能会在下一步请求您" & return & "输入密码. 请您放心,只有首次会要求您输入密码," & return & "以后的所有运行时都不会再请求任何的用户信息" with icon caution with title "请注意" buttons {"取消测试", "我知道了"} default button 2
+		--构建警告窗体
+		
+		do shell script "if [ ! -d \"/Library/Frameworks/IntelPowerGadget.framework\" ]
+		then cp -R " & appPath & execPath & "IntelPowerGadget.framework /Library/Frameworks/IntelPowerGadget.framework
+		else echo
+		fi" with administrator privileges
+		--安装缺失的必须性文件
+		
+		do shell script "if [ ! -d \"/Library/Extensions/EnergyDriver.kext\" ]
+		then cp -R " & appPath & execPath & "EnergyDriver.kext /Library/Extensions/EnergyDriver.kext;chown -R root:wheel /Library/Extensions/EnergyDriver.kext;chmod -R 755 /Library/Extensions/EnergyDriver.kext;kextload /Library/Extensions/EnergyDriver.kext
+		else echo
+		fi" with administrator privileges
+		--安装缺失的必须性文件
+		
+	end if
+	--结束判断
+	
+	feq()
+	--调用feq函数
+	
+end sys
+--结束定义sys函数
+
+on feq()
+	--开始定义feq函数
+	
+	display dialog "测试变频档位之前请结束所有正在运行的用户程序" & return & "否则很有可能无法测试出最低频以及其他低频档位" with icon caution with title "请注意" buttons {"取消测试", "我知道了"} default button 2
+	--构建警告窗体
+	
+	set the anniu2 to the button returned of the result
+	--获取按钮返回值
+	
+	if the anniu2 is "我知道了" then
+		--判断按钮返回值并执行对应的操作
+		
+		set Smbiost1 to localized string of "您的型号标识符为:  "
+		set txt to localized string of "具体档位如下:  "
+		set txt1 to localized string of "您的变频档位共有:  "
+		set txt2 to localized string of "个"
+		set txt3 to localized string of "您的处理器型号为:  "
+		set txt4 to localized string of "若处理器变频异常，可尝试点击\"生成SSDT\""
+		--将所需的本地文本赋值给变量
+		
+		do shell script "rm -rf /tmp/power.txt"
+		do shell script appPath & execPath & "PowerLog -resolution 1 -duration 2 -file /tmp/power.txt&for i in `seq 1 700`;do ls>/dev/null;done"
+		set num to do shell script "printf $(printf $(cat /tmp/power.txt|awk '{print $2}'|sed '1d'|head -1)|wc -m)"
+		if the num is "4" or the num is "5" then
+			set loge to do shell script "cat /tmp/power.txt|awk '{print $2}'|awk '!a[$0]++'|sed '1d;$d'|sed '$d'|sed '$d'|sed '$d'|sed s'/,/MHz/'g|sort|sed -e '/^$/d'"
+			set dw to do shell script "printf `cat /tmp/power.txt|awk '{print $2}'|awk '!a[$0]++'|sed '1d;$d'|sed '$d'|sed '$d'|sed '$d'|sed s'/,/MHz/'g|sed -e '/^$/d'|wc -l`"
+		else
+			set loge to do shell script "cat /tmp/power.txt|awk '{print $3}'|awk '!a[$0]++'|sed '1d;$d'|sed '$d'|sed '$d'|sed '$d'|sed s'/,/MHz/'g|sort|sed -e '/^$/d'"
+			set dw to do shell script "printf `cat /tmp/power.txt|awk '{print $3}'|awk '!a[$0]++'|sed '1d;$d'|sed '$d'|sed '$d'|sed '$d'|sed s'/,/MHz/'g|sed -e '/^$/d'|wc -l`"
+			--判断数据类别并提取随需的数据
+			
+		end if
+		--结束判断
+		
+		do shell script "rm -rf /tmp/power.txt"
+		--清理临时文件
+		
+		display dialog txt4 & return & return & Smbiost1 & Smbios & return & return & txt3 & CpuModel & return & return & txt1 & dw & txt2 & return & return & txt & return & loge with icon note with title "CPU-S v3.3" buttons {"CPU支持列表", "生成SSDT", "退出程序"} default button 3
+		--构建窗体
+		
+		set the anniu3 to the button returned of the result
+		--获取按钮返回值
+		
+		if the anniu3 is "生成SSDT" then
+			--判断按钮返回值并执行对应的操作
+			
+			display dialog "生成SSDT可能休要花费一段时间" & return & "若顺利生成，则会出现成功提示" & return & "若出现任意形式的报错提示信息" & return & "则说明您的处理器可能暂时不受支持" with icon caution with title "请注意" buttons {"退出程序", "我知道了"} default button 2
+			--构建窗体
+			
+			set the anniu4 to the button returned of the result
+			--获取按钮返回值
+			
+			if the anniu4 is "我知道了" then
+				--判断按钮返回值并执行对应的操作
+				
+				do shell script "rm -rf /tmp/ssdtPRGen.sh"
+				do shell script "rm -rf ~/Library/ssdtPRGen" with administrator privileges
+				do shell script "curl -L -o /tmp/ssdtPRGen.sh https://raw.githubusercontent.com/lihaoyun6/ssdtPRGen.sh/Pentium/ssdtPRGen.sh"
+				do shell script "chmod 755 /tmp/ssdtPRGen.sh" with administrator privileges
+				do shell script "yes n|/tmp/ssdtPRGen.sh" with administrator privileges
+				do shell script "~/Library/ssdtPRGen/Tools/iasl ~/Library/ssdtPRGen/ssdt.dsl" with administrator privileges
+				do shell script "cp -fr ~/Library/ssdtPRGen/ssdt.aml ~/Desktop/ssdt.aml"
+				do shell script "rm -rf ~/Library/ssdtPRGen" with administrator privileges
+				do shell script "rm -rf /tmp/ssdtPRGen.sh"
+				--下载并调用脚本生成ssdt
+				
+				display dialog "ssdt.aml已编译成功并复制到您的桌面" with icon note with title "编译成功" buttons {"我知道了"}
+				--构建窗体
+				
+			else if anniu4 is "退出程序" then
+				--判断按钮返回值并执行对应的操作		
+				
+			else if anniu3 is "CPU支持列表" then
+				--判断按钮返回值并执行对应的操作
+				
+				do shell script "open https://raw.githubusercontent.com/lihaoyun6/ssdtPRGen.sh/Pentium/CPUlist.txt"
+				--打开位于Github的列表信息
+				
+			end if
+			--结束判断
+			
+		end if
+		--结束判断
+		
+	end if
+	--结束判断
+	
+end feq
+--结束定义feq函数
